@@ -50,7 +50,7 @@ fn main() {
         println!("Connection is not yet complete. Do not close the program! The program closes once the connection is established.");
         
         
-        thread::sleep(Duration::from_millis(1_000));
+        thread::sleep(Duration::from_millis(2_000));
     }
     
     
