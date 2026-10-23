@@ -11,20 +11,21 @@ use eframe::egui::{self, Color32, RichText};
 
 use i18n::{Language, Strings};
 use theme::{AMBER, GREEN, RED};
+use tray::{Tray, Window};
 use update::Release;
 
 mod i18n;
 mod netsh;
 mod theme;
+mod tray;
 mod update;
 
 const APP_NAME: &str = "FlightScope Mevo Connect";
 const LANGUAGE_KEY: &str = "language";
 const AUTO_UPDATE_KEY: &str = "auto_update";
 const RETRY_DELAY: Duration = Duration::from_millis(2_000);
-/// How long the "connected" confirmation stays on screen before the program closes.
-const CLOSE_DELAY: Duration = Duration::from_secs(3);
-
+/// How long "Connected" is shown before the window hides to the system tray.
+const HIDE_DELAY: Duration = Duration::from_secs(2);
 
 /// FlightScope Mevo networks are named like "FS M2-XXXXXX".
 fn looks_like_mevo(ssid: &str) -> bool {
@@ -86,7 +87,7 @@ enum Msg {
 enum Status {
     Idle,
     Connecting { attempt: u32, output: String },
-    Connected { at: Instant },
+    Connected,
 }
 
 enum UpdateState {
@@ -111,6 +112,12 @@ struct App {
     /// Connecting waits for the startup update check when updates are automatic.
     connect_after_update_check: bool,
     show_settings: bool,
+    window: Window,
+    /// None if the tray icon couldn't be created; the window then never hides.
+    tray: Option<Tray>,
+    tray_language: Language,
+    /// When to hide the window to the tray after connecting.
+    hide_at: Option<Instant>,
     cancel: Arc<AtomicBool>,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
@@ -133,6 +140,13 @@ impl App {
             .storage
             .and_then(|storage| eframe::get_value::<bool>(storage, AUTO_UPDATE_KEY))
             .unwrap_or(false);
+        let window = Window::from_handle(cc);
+        let tray = match window.is_known() {
+            true => Tray::new(window.clone(), cc.egui_ctx.clone(), language.strings())
+                .map_err(|e| eprintln!("No tray icon: {e}"))
+                .ok(),
+            false => None,
+        };
         let (tx, rx) = channel();
         let mut app = Self {
             ssid,
@@ -143,6 +157,10 @@ impl App {
             update: UpdateState::Idle,
             connect_after_update_check: false,
             show_settings: false,
+            window,
+            tray,
+            tray_language: language,
+            hide_at: None,
             cancel: Arc::new(AtomicBool::new(false)),
             tx,
             rx,
@@ -167,22 +185,36 @@ impl App {
         let ctx = ctx.clone();
         self.cancel = Arc::new(AtomicBool::new(false));
         let cancel = self.cancel.clone();
+        let window = self.window.clone();
         self.status = Status::Connecting { attempt: 0, output: String::new() };
+        // Keeps watching after connecting, and reconnects if the connection drops
+        // (e.g. the Mevo is switched off and on again). The window comes back from the
+        // tray when that happens; it's shown from here because egui is paused while hidden.
         thread::spawn(move || {
             let mut attempt = 0;
+            let mut connected = false;
             loop {
-                if netsh::get_connected_networks().contains(&ssid) {
-                    let _ = tx.send(Msg::Connected);
-                    break;
-                }
                 if cancel.load(Ordering::Relaxed) {
                     let _ = tx.send(Msg::Cancelled);
                     break;
                 }
-                attempt += 1;
-                let output = netsh::connect(&ssid);
-                let _ = tx.send(Msg::Attempt { attempt, output });
-                ctx.request_repaint();
+                if netsh::get_connected_networks().contains(&ssid) {
+                    if !connected {
+                        connected = true;
+                        attempt = 0;
+                        let _ = tx.send(Msg::Connected);
+                        ctx.request_repaint();
+                    }
+                } else {
+                    if connected {
+                        connected = false;
+                        window.show();
+                    }
+                    attempt += 1;
+                    let output = netsh::connect(&ssid);
+                    let _ = tx.send(Msg::Attempt { attempt, output });
+                    ctx.request_repaint();
+                }
                 thread::sleep(RETRY_DELAY);
             }
             ctx.request_repaint();
@@ -222,11 +254,18 @@ impl App {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Msg::Attempt { attempt, output } => {
-                    if let Status::Connecting { .. } = self.status {
+                    // Ignore a late attempt after Cancel was pressed.
+                    if !matches!(self.status, Status::Idle) {
                         self.status = Status::Connecting { attempt, output };
+                        self.hide_at = None;
                     }
                 }
-                Msg::Connected => self.status = Status::Connected { at: Instant::now() },
+                Msg::Connected => {
+                    self.status = Status::Connected;
+                    if self.tray.is_some() {
+                        self.hide_at = Some(Instant::now() + HIDE_DELAY);
+                    }
+                }
                 Msg::Cancelled => self.status = Status::Idle,
                 Msg::Update(state) => {
                     self.update = state;
@@ -406,7 +445,7 @@ impl App {
         let (color, text) = match &self.status {
             Status::Idle => (theme::MUTED, t.not_connected.to_string()),
             Status::Connecting { attempt, .. } => (AMBER, t.connecting.replace("{n}", &attempt.to_string())),
-            Status::Connected { .. } => (GREEN, t.connected.to_string()),
+            Status::Connected => (GREEN, t.connected.to_string()),
         };
         theme::card().show(ui, |ui| {
             ui.set_width(ui.available_width());
@@ -426,8 +465,8 @@ impl App {
                     }
                     ui.weak(t.retry_hint);
                 }
-                Status::Connected { .. } => {
-                    ui.weak(t.closing);
+                Status::Connected => {
+                    ui.weak(t.watching);
                 }
                 Status::Idle => {}
             }
@@ -442,7 +481,7 @@ impl App {
                     self.cancel.store(true, Ordering::Relaxed);
                 }
             }
-            Status::Connected { .. } => {
+            Status::Connected => {
                 let button = theme::primary_button(&format!("✓ {}", t.connected)).fill(GREEN).stroke(egui::Stroke::NONE);
                 ui.add_sized(size, button.sense(egui::Sense::hover()));
             }
@@ -464,13 +503,19 @@ impl eframe::App for App {
         if let UpdateState::Installing = self.update {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        // Stay open while an update downloads so it isn't cut off.
-        if let (Status::Connected { at }, false) = (&self.status, self.update_busy()) {
-            let elapsed = at.elapsed();
-            if elapsed >= CLOSE_DELAY {
-                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        if let Some(at) = self.hide_at {
+            let now = Instant::now();
+            if now >= at {
+                self.hide_at = None;
+                self.window.hide();
             } else {
-                ctx.request_repaint_after(CLOSE_DELAY - elapsed);
+                ctx.request_repaint_after(at - now);
+            }
+        }
+        if let Some(tray) = &self.tray {
+            if self.tray_language != self.language {
+                tray.set_language(self.language.strings());
+                self.tray_language = self.language;
             }
         }
         egui::Panel::top("header").frame(theme::bar()).show(ui, |ui| self.header(ui));

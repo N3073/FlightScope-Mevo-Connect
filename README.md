@@ -21,7 +21,10 @@ To change the network name or the startup option later, run the installer again;
    - **✓ Mevo network** (green): the name matches the Mevo naming pattern. Names count as a match if they start with `FS` or contain `Mevo`; case doesn't matter.
    - **⚠ Not a Mevo name** (amber): the name doesn't match. The app still connects to it, but check the name you entered.
 3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it runs `netsh wlan connect` again. The status panel shows the attempt number and Windows' reply. It keeps retrying until it connects, so you can start it before the Mevo is switched on.
-4. Once connected, the app shows **Connected** for 3 seconds and then closes.
+4. Once connected, the app shows **Connected** for 2 seconds and then hides to the system tray (the notification area next to the clock). It keeps running and checks the connection every 2 seconds.
+5. If the Mevo disconnects, for example because it's switched off, the window comes back to the front and the app starts reconnecting.
+
+Click the tray icon to show the window at any time. Right-click it for **Show** and **Exit**. Closing the window exits the app.
 
 **Cancel** stops the retries, and **Connect** starts them again.
 
@@ -91,8 +94,8 @@ The installer is written to `dist\`.
 2. Tag the commit with the same version and push the tag:
 
    ```powershell
-   git tag v0.2.1
-   git push origin v0.2.1
+   git tag v0.2.2
+   git push origin v0.2.2
    ```
 
 The [Release workflow](.github/workflows/release.yml) builds the app and the installer, then publishes a GitHub release with the installer attached. Installed copies of the app update from that release. The workflow stops with an error if the tag doesn't match the version in `Cargo.toml`. Without that check, installed copies would install the same release over and over.
@@ -103,6 +106,7 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | --- | --- |
 | `src/main.rs` | The window, connection loop, update flow and settings view (built with [egui/eframe](https://github.com/emilk/egui)) |
 | `src/theme.rs` | Colours, fonts and widget styling, based on FlightScope's website |
+| `src/tray.rs` | The system tray icon, and hiding/showing the window |
 | `src/netsh.rs` | Wrappers around the Windows `netsh wlan` commands |
 | `src/update.rs` | Checks GitHub releases, downloads and verifies the installer, and runs it |
 | `src/i18n.rs` | Languages and the translated text |

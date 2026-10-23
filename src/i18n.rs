@@ -89,7 +89,9 @@ pub struct Strings {
     pub connecting: &'static str,
     pub connected: &'static str,
     pub retry_hint: &'static str,
-    pub closing: &'static str,
+    pub watching: &'static str,
+    pub tray_show: &'static str,
+    pub tray_exit: &'static str,
     pub connect: &'static str,
     pub cancel: &'static str,
     pub fs_name_missing: &'static str,
@@ -126,7 +128,7 @@ const EN: Strings = Strings {
     connecting: "Connecting… (attempt {n})",
     connected: "Connected",
     retry_hint: "Make sure the Mevo is switched on. Retrying until it connects.",
-    closing: "Closing automatically…",
+    watching: "Reconnects automatically if the connection drops.",
     connect: "Connect",
     cancel: "Cancel",
     fs_name_missing: "FS_name is not set",
@@ -146,6 +148,8 @@ const EN: Strings = Strings {
     downloading: "Downloading update {v}…",
     installing: "Installing update…",
     update_failed: "Update failed: {e}",
+    tray_show: "Show",
+    tray_exit: "Exit",
 };
 
 const FI: Strings = Strings {
@@ -159,7 +163,7 @@ const FI: Strings = Strings {
     connecting: "Yhdistetään… (yritys {n})",
     connected: "Yhdistetty",
     retry_hint: "Varmista, että Mevo on päällä. Yritetään uudelleen, kunnes yhteys muodostuu.",
-    closing: "Suljetaan automaattisesti…",
+    watching: "Yhdistää automaattisesti uudelleen, jos yhteys katkeaa.",
     connect: "Yhdistä",
     cancel: "Peruuta",
     fs_name_missing: "FS_name-muuttujaa ei ole asetettu",
@@ -179,6 +183,8 @@ const FI: Strings = Strings {
     downloading: "Ladataan päivitystä {v}…",
     installing: "Asennetaan päivitystä…",
     update_failed: "Päivitys epäonnistui: {e}",
+    tray_show: "Näytä",
+    tray_exit: "Lopeta",
 };
 
 const SV: Strings = Strings {
@@ -192,7 +198,7 @@ const SV: Strings = Strings {
     connecting: "Ansluter… (försök {n})",
     connected: "Ansluten",
     retry_hint: "Se till att Mevo är påslagen. Försöker igen tills anslutningen lyckas.",
-    closing: "Stängs automatiskt…",
+    watching: "Återansluter automatiskt om anslutningen bryts.",
     connect: "Anslut",
     cancel: "Avbryt",
     fs_name_missing: "FS_name är inte angiven",
@@ -212,6 +218,8 @@ const SV: Strings = Strings {
     downloading: "Laddar ner uppdatering {v}…",
     installing: "Installerar uppdatering…",
     update_failed: "Uppdateringen misslyckades: {e}",
+    tray_show: "Visa",
+    tray_exit: "Avsluta",
 };
 
 const DE: Strings = Strings {
@@ -225,7 +233,7 @@ const DE: Strings = Strings {
     connecting: "Verbindung wird hergestellt… (Versuch {n})",
     connected: "Verbunden",
     retry_hint: "Stellen Sie sicher, dass der Mevo eingeschaltet ist. Es wird erneut versucht, bis die Verbindung steht.",
-    closing: "Wird automatisch geschlossen…",
+    watching: "Verbindet sich automatisch neu, wenn die Verbindung abbricht.",
     connect: "Verbinden",
     cancel: "Abbrechen",
     fs_name_missing: "FS_name ist nicht gesetzt",
@@ -245,6 +253,8 @@ const DE: Strings = Strings {
     downloading: "Update {v} wird heruntergeladen…",
     installing: "Update wird installiert…",
     update_failed: "Update fehlgeschlagen: {e}",
+    tray_show: "Anzeigen",
+    tray_exit: "Beenden",
 };
 
 const IT: Strings = Strings {
@@ -258,7 +268,7 @@ const IT: Strings = Strings {
     connecting: "Connessione in corso… (tentativo {n})",
     connected: "Connesso",
     retry_hint: "Assicurati che il Mevo sia acceso. Nuovi tentativi fino alla connessione.",
-    closing: "Chiusura automatica…",
+    watching: "Si riconnette automaticamente se la connessione si interrompe.",
     connect: "Connetti",
     cancel: "Annulla",
     fs_name_missing: "FS_name non è impostata",
@@ -278,6 +288,8 @@ const IT: Strings = Strings {
     downloading: "Download dell'aggiornamento {v}…",
     installing: "Installazione dell'aggiornamento…",
     update_failed: "Aggiornamento non riuscito: {e}",
+    tray_show: "Mostra",
+    tray_exit: "Esci",
 };
 
 const FR: Strings = Strings {
@@ -291,7 +303,7 @@ const FR: Strings = Strings {
     connecting: "Connexion… (tentative {n})",
     connected: "Connecté",
     retry_hint: "Assurez-vous que le Mevo est allumé. Nouvelle tentative jusqu'à la connexion.",
-    closing: "Fermeture automatique…",
+    watching: "Se reconnecte automatiquement si la connexion est perdue.",
     connect: "Connecter",
     cancel: "Annuler",
     fs_name_missing: "FS_name n'est pas défini",
@@ -311,6 +323,8 @@ const FR: Strings = Strings {
     downloading: "Téléchargement de la mise à jour {v}…",
     installing: "Installation de la mise à jour…",
     update_failed: "Échec de la mise à jour : {e}",
+    tray_show: "Afficher",
+    tray_exit: "Quitter",
 };
 
 const ES: Strings = Strings {
@@ -324,7 +338,7 @@ const ES: Strings = Strings {
     connecting: "Conectando… (intento {n})",
     connected: "Conectado",
     retry_hint: "Asegúrate de que el Mevo esté encendido. Se reintentará hasta que se conecte.",
-    closing: "Cerrando automáticamente…",
+    watching: "Se vuelve a conectar automáticamente si se pierde la conexión.",
     connect: "Conectar",
     cancel: "Cancelar",
     fs_name_missing: "FS_name no está definida",
@@ -344,6 +358,8 @@ const ES: Strings = Strings {
     downloading: "Descargando la actualización {v}…",
     installing: "Instalando la actualización…",
     update_failed: "Error al actualizar: {e}",
+    tray_show: "Mostrar",
+    tray_exit: "Salir",
 };
 
 const PT: Strings = Strings {
@@ -357,7 +373,7 @@ const PT: Strings = Strings {
     connecting: "A conectar… (tentativa {n})",
     connected: "Conectado",
     retry_hint: "Certifique-se de que o Mevo está ligado. Nova tentativa até conseguir a conexão.",
-    closing: "A fechar automaticamente…",
+    watching: "Volta a conectar-se automaticamente se a conexão cair.",
     connect: "Conectar",
     cancel: "Cancelar",
     fs_name_missing: "FS_name não está definida",
@@ -377,4 +393,6 @@ const PT: Strings = Strings {
     downloading: "A transferir a atualização {v}…",
     installing: "A instalar a atualização…",
     update_failed: "Falha na atualização: {e}",
+    tray_show: "Mostrar",
+    tray_exit: "Sair",
 };
