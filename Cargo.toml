@@ -2,6 +2,7 @@
 name = "FlightScope-connect"
 version = "0.2.0"
 edition = "2024"
+license = "AGPL-3.0-or-later"
 
 [dependencies]
 eframe = { version = "0.37", features = ["persistence"] }

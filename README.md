@@ -118,3 +118,15 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | Stays on "Connecting…" | Check that the Mevo is switched on and in range, and that the network name matches exactly, including spaces and case. |
 | Badge shows "Not a Mevo name" | The network name you entered is probably wrong. Run the installer again to change it. |
 | "Update failed" | The PC probably has no internet connection. Try **Check for updates** again later. |
+
+## License
+
+Copyright (C) 2026 N3073
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the [GNU Affero General Public License](LICENSE) for more details.
+
+The bundled Nunito font (`assets/fonts/`) is licensed separately under the SIL Open Font License 1.1 (`assets/fonts/OFL.txt`).
+
+FlightScope and Mevo are trademarks of FlightScope. This project is not affiliated with or endorsed by FlightScope.
