@@ -91,8 +91,8 @@ The installer is written to `dist\`.
 2. Tag the commit with the same version and push the tag:
 
    ```powershell
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v0.2.1
+   git push origin v0.2.1
    ```
 
 The [Release workflow](.github/workflows/release.yml) builds the app and the installer, then publishes a GitHub release with the installer attached. Installed copies of the app update from that release. The workflow stops with an error if the tag doesn't match the version in `Cargo.toml`. Without that check, installed copies would install the same release over and over.
@@ -108,6 +108,8 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | `src/i18n.rs` | Languages and the translated text |
 | `installer/setup.iss` | Inno Setup script for the installer |
 | `assets/fonts/` | The Nunito font, under the SIL Open Font License (`OFL.txt`) |
+| `assets/icon.ico`, `assets/icon.png` | The app icon. Regenerate both with `python assets/make_icon.py` (needs Pillow) |
+| `build.rs` | Embeds the icon in the exe; needs the Windows SDK's resource compiler (`rc.exe`) |
 
 ## Troubleshooting
 

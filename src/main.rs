@@ -500,6 +500,10 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_NAME)
+            .with_icon(
+                eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
+                    .expect("bundled icon is a valid PNG"),
+            )
             .with_inner_size([460.0, 470.0])
             .with_min_inner_size([380.0, 360.0]),
         // Always open at the default size rather than wherever it was last left.

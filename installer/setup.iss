@@ -25,6 +25,7 @@ DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
+SetupIconFile=..\assets\icon.ico
 ShowLanguageDialog=auto
 ChangesEnvironment=yes
 CloseApplications=yes
