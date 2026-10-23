@@ -1,0 +1,144 @@
+//! Look and feel based on FlightScope's website: white pages, charcoal header and footer,
+//! blue buttons, red accents and the Nunito font.
+
+use std::sync::Arc;
+
+use eframe::egui::{
+    self, Color32, CornerRadius, FontData, FontDefinitions, FontFamily, FontId, Stroke, TextStyle,
+};
+
+pub const BLUE: Color32 = Color32::from_rgb(0x07, 0x7c, 0xbf);
+pub const BLUE_LIGHT: Color32 = Color32::from_rgb(0x09, 0x9c, 0xf0);
+pub const BLUE_DIM: Color32 = Color32::from_rgb(0x06, 0x6c, 0xa6);
+pub const RED: Color32 = Color32::from_rgb(0xd6, 0x00, 0x1c);
+pub const GREEN: Color32 = Color32::from_rgb(0x2e, 0x9e, 0x5b);
+pub const AMBER: Color32 = Color32::from_rgb(0xd9, 0x8a, 0x00);
+pub const CHARCOAL: Color32 = Color32::from_rgb(0x4b, 0x4b, 0x4b);
+pub const GREY: Color32 = Color32::from_rgb(0x58, 0x58, 0x58);
+pub const MUTED: Color32 = Color32::from_rgb(0x8a, 0x8a, 0x8a);
+pub const CARD: Color32 = Color32::from_rgb(0xf2, 0xf2, 0xf2);
+pub const BORDER: Color32 = Color32::from_rgb(0xe8, 0xe8, 0xe1);
+pub const TEXT: Color32 = Color32::from_rgb(0x11, 0x11, 0x11);
+
+const RADIUS: u8 = 6;
+
+/// Font family for headings and button labels.
+pub fn bold() -> FontFamily {
+    FontFamily::Name("bold".into())
+}
+
+pub fn apply(ctx: &egui::Context) {
+    install_fonts(ctx);
+    ctx.set_theme(egui::Theme::Light);
+    ctx.style_mut_of(egui::Theme::Light, |style| {
+        style.text_styles = [
+            (TextStyle::Heading, FontId::new(20.0, bold())),
+            (TextStyle::Body, FontId::new(15.0, FontFamily::Proportional)),
+            (TextStyle::Button, FontId::new(15.0, FontFamily::Proportional)),
+            (TextStyle::Small, FontId::new(12.5, FontFamily::Proportional)),
+            (TextStyle::Monospace, FontId::new(14.0, FontFamily::Monospace)),
+        ]
+        .into();
+        style.spacing.button_padding = egui::vec2(12.0, 6.0);
+        style.spacing.item_spacing = egui::vec2(8.0, 8.0);
+
+        let visuals = &mut style.visuals;
+        visuals.override_text_color = Some(TEXT);
+        visuals.panel_fill = Color32::WHITE;
+        visuals.window_fill = Color32::WHITE;
+        visuals.extreme_bg_color = Color32::WHITE;
+        visuals.faint_bg_color = CARD;
+        visuals.hyperlink_color = BLUE;
+        visuals.selection.bg_fill = BLUE;
+        visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
+        visuals.window_stroke = Stroke::new(1.0, BORDER);
+
+        let radius = CornerRadius::same(RADIUS);
+        let widgets = &mut visuals.widgets;
+        widgets.noninteractive.bg_stroke = Stroke::new(1.0, BORDER);
+        widgets.noninteractive.corner_radius = radius;
+        for (state, fill, stroke) in [
+            (&mut widgets.inactive, Color32::WHITE, BORDER),
+            (&mut widgets.hovered, CARD, BLUE_LIGHT),
+            (&mut widgets.active, BORDER, BLUE),
+            (&mut widgets.open, CARD, BLUE),
+        ] {
+            state.bg_fill = fill;
+            state.weak_bg_fill = fill;
+            state.bg_stroke = Stroke::new(1.0, stroke);
+            state.fg_stroke = Stroke::new(1.5, TEXT);
+            state.corner_radius = radius;
+            state.expansion = 0.0;
+        }
+    });
+}
+
+fn install_fonts(ctx: &egui::Context) {
+    let mut fonts = FontDefinitions::default();
+    fonts.font_data.insert(
+        "Nunito".into(),
+        Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Nunito-400.ttf"))),
+    );
+    fonts.font_data.insert(
+        "Nunito-Bold".into(),
+        Arc::new(FontData::from_static(include_bytes!("../assets/fonts/Nunito-700.ttf"))),
+    );
+    // Keep egui's default fonts as fallbacks for symbols such as ✔ and ⚙.
+    let fallbacks = fonts.families[&FontFamily::Proportional].clone();
+    fonts
+        .families
+        .get_mut(&FontFamily::Proportional)
+        .unwrap()
+        .insert(0, "Nunito".into());
+    fonts
+        .families
+        .insert(bold(), std::iter::once("Nunito-Bold".to_string()).chain(fallbacks).collect());
+    ctx.set_fonts(fonts);
+}
+
+/// A light grey rounded panel, like the product cards on FlightScope's site.
+pub fn card() -> egui::Frame {
+    egui::Frame::new()
+        .fill(CARD)
+        .corner_radius(CornerRadius::same(RADIUS + 2))
+        .inner_margin(egui::Margin::same(12))
+}
+
+/// The charcoal header and footer bars.
+pub fn bar() -> egui::Frame {
+    egui::Frame::new()
+        .fill(CHARCOAL)
+        .inner_margin(egui::Margin::symmetric(14, 10))
+}
+
+/// A settings cog for the header bar, drawn by hand so it doesn't depend on font glyphs.
+pub fn gear_button(ui: &mut egui::Ui, selected: bool) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(26.0, 26.0), egui::Sense::click());
+    let color = if selected || response.hovered() { BLUE_LIGHT } else { Color32::WHITE };
+    let center = rect.center();
+    let painter = ui.painter();
+    for i in 0..8 {
+        let angle = i as f32 * std::f32::consts::TAU / 8.0;
+        let dir = egui::vec2(angle.cos(), angle.sin());
+        painter.line_segment([center + dir * 6.0, center + dir * 10.5], Stroke::new(3.5, color));
+    }
+    painter.circle_filled(center, 7.5, color);
+    painter.circle_filled(center, 3.0, CHARCOAL);
+    response.on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// A filled blue call-to-action button with white bold text.
+pub fn primary_button(text: &str) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(text).family(bold()).size(17.0).color(Color32::WHITE))
+        .fill(BLUE)
+        .stroke(Stroke::new(1.0, BLUE_DIM))
+        .corner_radius(CornerRadius::same(RADIUS))
+}
+
+/// An outlined button for secondary actions such as Cancel.
+pub fn secondary_button(text: &str) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(text).family(bold()).size(17.0).color(GREY))
+        .fill(Color32::WHITE)
+        .stroke(Stroke::new(1.5, GREY))
+        .corner_radius(CornerRadius::same(RADIUS))
+}

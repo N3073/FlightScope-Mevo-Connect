@@ -1,11 +1,16 @@
 [package]
 name = "FlightScope-connect"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
 eframe = { version = "0.37", features = ["persistence"] }
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+sha2 = "0.11.1"
 sys-locale = "0.3.2"
+ureq = { version = "3", features = ["json"] }
+winreg = "0.56.0"
 
 [profile.dev]
 opt-level=0
