@@ -89,7 +89,9 @@ fn load_icon(ctx: &egui::Context) -> egui::TextureHandle {
 }
 
 enum Msg {
-    Attempt { attempt: u32, output: String },
+    /// A connection attempt; `has_profile` is re-checked each time, since the user may join
+    /// the network from Windows (which saves a profile) while the app is running.
+    Attempt { attempt: u32, output: String, has_profile: bool },
     Connected,
     Cancelled,
     Update(UpdateState),
@@ -229,7 +231,8 @@ impl App {
                     }
                     attempt += 1;
                     let output = netsh::connect(&ssid);
-                    let _ = tx.send(Msg::Attempt { attempt, output });
+                    let has_profile = netsh::get_saved_profiles().contains(&ssid);
+                    let _ = tx.send(Msg::Attempt { attempt, output, has_profile });
                     ctx.request_repaint();
                 }
                 thread::sleep(RETRY_DELAY);
@@ -270,7 +273,8 @@ impl App {
     fn handle_messages(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
-                Msg::Attempt { attempt, output } => {
+                Msg::Attempt { attempt, output, has_profile } => {
+                    self.has_profile = has_profile;
                     // Ignore a late attempt after Cancel was pressed.
                     if !matches!(self.status, Status::Idle) {
                         self.status = Status::Connecting { attempt, output };
@@ -279,6 +283,8 @@ impl App {
                 }
                 Msg::Connected => {
                     self.status = Status::Connected;
+                    // Being connected means Windows has a profile for the network.
+                    self.has_profile = true;
                     if self.tray.is_some() {
                         self.hide_at = Some(Instant::now() + HIDE_DELAY);
                     }
