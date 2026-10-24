@@ -5,7 +5,7 @@ A small Windows app that connects the PC's wifi adapter to a FlightScope Mevo ba
 ## Installing
 
 1. Download `FlightScope-Mevo-Connect-<version>-Setup.exe` from the [latest release](https://github.com/N3073/FlightScope-Mevo-Connect/releases/latest) and run it. Administrator rights aren't needed: the app is installed for the current user only, in `%LOCALAPPDATA%\Programs\FlightScope Mevo Connect`.
-2. When asked, enter the name of the Mevo's wifi network, for example `FS M2-123456`. If the name doesn't look like a Mevo network, the installer asks you to confirm it.
+2. When asked, enter the name of the Mevo's wifi network, for example `FS M2-123456`. Networks already saved on the PC that look like a Mevo network are offered in the drop-down, and the first one is filled in for you. If the name doesn't look like a Mevo network, the installer asks you to confirm it.
 3. Choose whether the app should **start automatically when you sign in to Windows**. You can also add a desktop shortcut.
 
 The installer is available in the same languages as the app.
@@ -89,7 +89,7 @@ cargo build --release
 
 The exe is created at `target\release\FlightScope-connect.exe`. Release builds open no console window. Debug builds (`cargo run`) keep the console so you can see log output.
 
-To build the installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and run:
+To build the installer, install [Inno Setup](https://jrsoftware.org/isinfo.php) 6.3 or newer and run:
 
 ```powershell
 & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.2.0 installer\setup.iss
