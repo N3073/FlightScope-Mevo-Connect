@@ -1,7 +1,7 @@
 //! System tray icon, and hiding/showing the window from any thread.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
 use eframe::egui;
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -62,6 +62,8 @@ impl Window {
 
 pub struct Tray {
     _icon: TrayIcon,
+    /// Set when Exit is chosen, so the close request isn't turned into hiding.
+    exit_requested: Arc<AtomicBool>,
     show: MenuItem,
     exit: MenuItem,
 }
@@ -94,9 +96,12 @@ impl Tray {
             }
         }));
         let (show_id, exit_id) = (show.id().clone(), exit.id().clone());
+        let exit_requested = Arc::new(AtomicBool::new(false));
+        let exit_flag = exit_requested.clone();
         MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
             window.show();
             if event.id == exit_id {
+                exit_flag.store(true, Ordering::Relaxed);
                 // The window has to be visible for egui to process the close request.
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             } else if event.id != show_id {
@@ -105,7 +110,11 @@ impl Tray {
             ctx.request_repaint();
         }));
 
-        Ok(Self { _icon: tray, show, exit })
+        Ok(Self { _icon: tray, exit_requested, show, exit })
+    }
+
+    pub fn exit_requested(&self) -> bool {
+        self.exit_requested.load(Ordering::Relaxed)
     }
 
     /// Updates the menu after the language is changed.

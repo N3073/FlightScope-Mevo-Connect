@@ -503,6 +503,18 @@ impl eframe::App for App {
         if let UpdateState::Installing = self.update {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
+        // The close button hides to the tray; Exit in the tray menu (or installing an update)
+        // really closes. Minimising is left to Windows, so it goes to the taskbar as usual.
+        if ctx.input(|i| i.viewport().close_requested()) {
+            let installing = matches!(self.update, UpdateState::Installing);
+            if let Some(tray) = &self.tray {
+                if !tray.exit_requested() && !installing {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    self.hide_at = None;
+                    self.window.hide();
+                }
+            }
+        }
         if let Some(at) = self.hide_at {
             let now = Instant::now();
             if now >= at {
@@ -545,6 +557,7 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_NAME)
+            .with_maximize_button(false)
             .with_icon(
                 eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
                     .expect("bundled icon is a valid PNG"),

@@ -24,7 +24,9 @@ To change the network name or the startup option later, run the installer again;
 4. Once connected, the app shows **Connected** for 2 seconds and then hides to the system tray (the notification area next to the clock). It keeps running and checks the connection every 2 seconds.
 5. If the Mevo disconnects, for example because it's switched off, the window comes back to the front and the app starts reconnecting.
 
-Click the tray icon to show the window at any time. Right-click it for **Show** and **Exit**. Closing the window exits the app.
+Click the tray icon to show the window at any time. Right-click it for **Show** and **Exit**.
+
+The window's close button (✕) hides the app to the tray rather than quitting, so it keeps watching the connection. To quit, choose **Exit** from the tray menu. The minimise button works as usual and minimises the window to the taskbar.
 
 **Cancel** stops the retries, and **Connect** starts them again.
 
