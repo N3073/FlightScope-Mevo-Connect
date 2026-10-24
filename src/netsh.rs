@@ -55,3 +55,8 @@ pub fn connect(name: &str) -> String {
         .map(|out| out.trim().to_string())
         .unwrap_or_else(|| String::from("Failed to run netsh."))
 }
+
+/// Opens the Windows list of available wifi networks.
+pub fn open_wifi_menu() {
+    let _ = Command::new("explorer").arg("ms-availablenetworks:").spawn();
+}
