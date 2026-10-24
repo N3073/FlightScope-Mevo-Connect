@@ -103,8 +103,8 @@ The installer is written to `dist\`.
 2. Tag the commit with the same version and push the tag:
 
    ```powershell
-   git tag v0.3.0
-   git push origin v0.3.0
+   git tag v0.3.1
+   git push origin v0.3.1
    ```
 
 The [Release workflow](.github/workflows/release.yml) builds the app and the installer, then publishes a GitHub release with the installer attached. Installed copies of the app update from that release. The workflow stops with an error if the tag doesn't match the version in `Cargo.toml`. Without that check, installed copies would install the same release over and over.
