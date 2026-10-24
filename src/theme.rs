@@ -54,6 +54,8 @@ pub fn apply(ctx: &egui::Context) {
         visuals.selection.bg_fill = BLUE;
         visuals.selection.stroke = Stroke::new(1.0, Color32::WHITE);
         visuals.window_stroke = Stroke::new(1.0, BORDER);
+        // A hand cursor over anything clickable.
+        visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
 
         let radius = CornerRadius::same(RADIUS);
         let widgets = &mut visuals.widgets;
@@ -167,18 +169,47 @@ pub fn gear_button(ui: &mut egui::Ui, selected: bool) -> egui::Response {
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }
 
-/// A filled blue call-to-action button with white bold text.
-pub fn primary_button(text: &str) -> egui::Button<'static> {
-    egui::Button::new(egui::RichText::new(text).family(bold()).size(17.0).color(Color32::WHITE))
-        .fill(BLUE)
-        .stroke(Stroke::new(1.0, BLUE_DIM))
-        .corner_radius(CornerRadius::same(RADIUS))
+#[derive(Clone, Copy)]
+pub enum ButtonKind {
+    /// Filled blue, for the main action (Connect, Install).
+    Primary,
+    /// Outlined grey, for secondary actions (Cancel).
+    Secondary,
+    /// Filled green and not clickable, for showing a done state (Connected).
+    Success,
 }
 
-/// An outlined button for secondary actions such as Cancel.
-pub fn secondary_button(text: &str) -> egui::Button<'static> {
-    egui::Button::new(egui::RichText::new(text).family(bold()).size(17.0).color(GREY))
-        .fill(Color32::WHITE)
-        .stroke(Stroke::new(1.5, GREY))
-        .corner_radius(CornerRadius::same(RADIUS))
+/// A bold call-to-action button whose colours change on hover and press.
+pub fn action_button(ui: &mut egui::Ui, text: &str, kind: ButtonKind, size: egui::Vec2, enabled: bool) -> egui::Response {
+    // (fill, border) for normal, hovered and pressed, plus the text colour.
+    let (states, text_color) = match kind {
+        ButtonKind::Primary => ([(BLUE, BLUE_DIM), (BLUE_LIGHT, BLUE), (BLUE_DIM, BLUE_DIM)], Color32::WHITE),
+        ButtonKind::Secondary => ([(Color32::WHITE, GREY), (CARD, CHARCOAL), (BORDER, CHARCOAL)], GREY),
+        ButtonKind::Success => ([(GREEN, GREEN); 3], Color32::WHITE),
+    };
+    let font_size = if size.y < 36.0 { 14.0 } else { 17.0 };
+    ui.scope(|ui| {
+        let visuals = ui.visuals_mut();
+        // The app-wide text colour would otherwise win over the per-state colours.
+        visuals.override_text_color = None;
+        let widgets = &mut visuals.widgets;
+        for (state, (fill, border)) in [&mut widgets.inactive, &mut widgets.hovered, &mut widgets.active]
+            .into_iter()
+            .zip(states)
+        {
+            state.weak_bg_fill = fill;
+            state.bg_fill = fill;
+            state.bg_stroke = Stroke::new(1.5, border);
+            state.fg_stroke = Stroke::new(1.5, text_color);
+            state.corner_radius = CornerRadius::same(RADIUS);
+        }
+        let button = egui::Button::new(egui::RichText::new(text).family(bold()).size(font_size));
+        let button = match kind {
+            ButtonKind::Success => button.sense(egui::Sense::hover()),
+            _ => button,
+        };
+        // add_sized keeps the label centred in a wide button.
+        ui.add_enabled_ui(enabled, |ui| ui.add_sized(size, button)).inner
+    })
+    .inner
 }

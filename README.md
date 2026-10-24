@@ -24,6 +24,7 @@ To change the network name or the startup option later, run the installer again;
    - **No wifi adapter**: the PC has no wifi adapter. Plug in a USB wifi adapter.
    - **Wifi adapter is disabled**: enable it in Windows network connections. There's an **Open network connections** button.
    - **Wifi is off**: turn wifi on in Windows.
+   - **Mevo not found**: the Mevo's network isn't in range, usually because the Mevo is switched off. Switch it on and keep it near the PC. The app keeps trying meanwhile.
    - **Network not saved in Windows**: join the network once from the Windows wifi menu, so that Windows saves its password.
 
    The last two have an **Open wifi menu** button.
@@ -132,6 +133,7 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | "Wifi adapter is disabled" | Click **Open network connections**, right-click the wifi adapter and choose **Enable**. This needs administrator rights. |
 | "Wifi is off" | Turn wifi on in Windows, for example with **Open wifi menu**. |
 | "Network not saved in Windows" | Join the Mevo's network once from the Windows wifi menu. |
+| "Mevo not found" | Switch the Mevo on and move it closer to the PC. Check that the network name matches exactly, including spaces and case. |
 | Stays on "Connecting…" | Check that the Mevo is switched on and in range, and that the network name matches exactly, including spaces and case. |
 | Badge shows "Not a Mevo name" | The network name you entered is probably wrong. Run the installer again to change it. |
 | "Update failed" | The PC probably has no internet connection. Try **Check for updates** again later. |

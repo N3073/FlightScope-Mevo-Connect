@@ -103,6 +103,8 @@ enum Status {
     AdapterDisabled,
     /// Wifi is switched off in Windows.
     WifiOff,
+    /// The network isn't in range, typically because the Mevo is switched off.
+    NotFound,
     /// Waiting for the user to join the network once from Windows, which saves its profile.
     NoProfile,
     Connecting,
@@ -225,8 +227,12 @@ impl App {
                     netsh::Wifi::On { connected } if connected.contains(&ssid) => Status::Connected,
                     netsh::Wifi::On { .. } if !netsh::get_saved_profiles().contains(&ssid) => Status::NoProfile,
                     netsh::Wifi::On { .. } => {
+                        // Windows' list of visible networks can lag behind, so try anyway.
                         netsh::connect(&ssid);
-                        Status::Connecting
+                        match netsh::get_visible_networks().contains(&ssid) {
+                            true => Status::Connecting,
+                            false => Status::NotFound,
+                        }
                     }
                 };
                 if status != last {
@@ -310,7 +316,9 @@ impl App {
     fn title_bar(&mut self, ui: &mut egui::Ui) {
         let t = self.language.strings();
         let bar = egui::Rect::from_min_size(ui.max_rect().min, egui::vec2(ui.max_rect().width(), theme::TITLE_BAR_HEIGHT));
-        let drag = ui.interact(bar, ui.scope_id().with("title_bar"), egui::Sense::click_and_drag());
+        let drag = ui
+            .interact(bar, ui.scope_id().with("title_bar"), egui::Sense::click_and_drag())
+            .on_hover_cursor(egui::CursorIcon::Default);
         // Move the window with the cursor while the button is held on the bar. This tracks the
         // cursor in screen coordinates itself rather than using Windows' move mode
         // (ViewportCommand::StartDrag), which didn't respond reliably.
@@ -391,7 +399,8 @@ impl App {
     /// Installs the update, or opens the download page when not running from an installation.
     fn update_button(&mut self, ui: &mut egui::Ui, t: &Strings, release: Release) {
         if update::is_installed() {
-            if ui.add(theme::primary_button(t.install_update).small()).clicked() {
+            let size = egui::vec2(0.0, 28.0);
+            if theme::action_button(ui, t.install_update, theme::ButtonKind::Primary, size, true).clicked() {
                 self.install_update(release, ui.ctx());
             }
         } else if ui.button(t.download).clicked() {
@@ -487,6 +496,7 @@ impl App {
             Status::NoAdapter => (AMBER, t.no_adapter_title, Some(t.no_adapter)),
             Status::AdapterDisabled => (AMBER, t.adapter_off_title, Some(t.adapter_off)),
             Status::WifiOff => (AMBER, t.wifi_off_title, Some(t.wifi_off)),
+            Status::NotFound => (RED, t.not_found_title, Some(t.not_found)),
             Status::NoProfile => (AMBER, t.no_profile_title, Some(t.no_profile)),
             Status::Connecting => (AMBER, t.connecting, Some(t.retry_hint)),
             Status::Connected => (GREEN, t.connected, Some(t.watching)),
@@ -525,22 +535,21 @@ impl App {
     }
 
     fn connect_button(&mut self, ui: &mut egui::Ui, t: &Strings) {
+        use theme::ButtonKind;
         let size = egui::vec2(ui.available_width(), 40.0);
         match self.status {
-            Status::NoAdapter | Status::AdapterDisabled | Status::WifiOff | Status::NoProfile | Status::Connecting => {
-                if ui.add_sized(size, theme::secondary_button(t.cancel)).clicked() {
-                    self.cancel.store(true, Ordering::Relaxed);
+            Status::Idle => {
+                let enabled = !self.connect_after_update_check;
+                if theme::action_button(ui, t.connect, ButtonKind::Primary, size, enabled).clicked() {
+                    self.connect(ui.ctx());
                 }
             }
             Status::Connected => {
-                let button = theme::primary_button(&format!("✓ {}", t.connected)).fill(GREEN).stroke(egui::Stroke::NONE);
-                ui.add_sized(size, button.sense(egui::Sense::hover()));
+                theme::action_button(ui, &format!("✓ {}", t.connected), ButtonKind::Success, size, true);
             }
-            Status::Idle => {
-                let button = theme::primary_button(t.connect);
-                let enabled = !self.connect_after_update_check;
-                if ui.add_enabled(enabled, button.min_size(size)).clicked() {
-                    self.connect(ui.ctx());
+            _ => {
+                if theme::action_button(ui, t.cancel, ButtonKind::Secondary, size, true).clicked() {
+                    self.cancel.store(true, Ordering::Relaxed);
                 }
             }
         }

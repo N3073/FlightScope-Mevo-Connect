@@ -94,6 +94,17 @@ fn parse_admin_status(out: &str) -> Wifi {
     }
 }
 
+/// SSIDs of the networks in range, from Windows' latest wifi scan.
+pub fn get_visible_networks() -> Vec<String> {
+    netsh(&["wlan", "show", "networks"], None)
+        .map(|out| parse_visible_networks(&out))
+        .unwrap_or_default()
+}
+
+fn parse_visible_networks(out: &str) -> Vec<String> {
+    values_of(out, |key| key.starts_with("SSID "))
+}
+
 /// Names of the wifi profiles saved in Windows. `netsh wlan connect` only works for these.
 pub fn get_saved_profiles() -> Vec<String> {
     netsh(&["wlan", "show", "profiles"], None)
@@ -163,6 +174,25 @@ There is 1 interface on the system:
     #[ignore]
     fn adapter_query_finds_enabled_adapter() {
         assert_eq!(adapter_state(), Wifi::RadioOff);
+    }
+
+    #[test]
+    fn visible_networks() {
+        let out = "
+Interface name : WLAN
+There are 3 networks currently visible.
+
+SSID 1 :
+    Network type            : Infrastructure
+
+SSID 2 : MORDOR
+    Network type            : Infrastructure
+
+SSID 3 : FS M2-123456
+    Network type            : Infrastructure
+";
+        // Hidden networks have an empty name and are left out.
+        assert_eq!(parse_visible_networks(out), vec!["MORDOR", "FS M2-123456"]);
     }
 
     #[test]
