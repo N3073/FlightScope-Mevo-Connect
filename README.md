@@ -21,10 +21,12 @@ To change the network name or the startup option later, run the installer again;
    - **✓ Mevo network** (green): the name matches the Mevo naming pattern. Names count as a match if they start with `FS` or contain `Mevo`; case doesn't matter.
    - **⚠ Not a Mevo name** (amber): the name doesn't match. The app still connects to it, but check the name you entered.
 3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it runs `netsh wlan connect` again, and keeps retrying until it connects, so you can start it before the Mevo is switched on. It only retries when connecting can work. Otherwise it shows what to fix and carries on by itself once it's fixed:
+   - **No wifi adapter**: the PC has no wifi adapter. Plug in a USB wifi adapter.
+   - **Wifi adapter is disabled**: enable it in Windows network connections. There's an **Open network connections** button.
    - **Wifi is off**: turn wifi on in Windows.
    - **Network not saved in Windows**: join the network once from the Windows wifi menu, so that Windows saves its password.
 
-   Both screens have an **Open wifi menu** button.
+   The last two have an **Open wifi menu** button.
 4. Once connected, the app shows **Connected** for 2 seconds and then hides to the system tray (the notification area next to the clock). It keeps running and checks the connection every 2 seconds.
 5. If the Mevo disconnects, for example because it's switched off, the window comes back to the front and the app starts reconnecting.
 
@@ -126,6 +128,8 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | Problem | What to check |
 | --- | --- |
 | "FS_name is not set" | Run the installer again, or set the variable yourself (see above). |
+| "No wifi adapter" | The PC needs a wifi adapter to reach the Mevo; plug in a USB wifi adapter. |
+| "Wifi adapter is disabled" | Click **Open network connections**, right-click the wifi adapter and choose **Enable**. This needs administrator rights. |
 | "Wifi is off" | Turn wifi on in Windows, for example with **Open wifi menu**. |
 | "Network not saved in Windows" | Join the Mevo's network once from the Windows wifi menu. |
 | Stays on "Connecting…" | Check that the Mevo is switched on and in range, and that the network name matches exactly, including spaces and case. |

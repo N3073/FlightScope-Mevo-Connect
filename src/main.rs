@@ -97,7 +97,11 @@ enum Msg {
 #[derive(Clone, Copy, PartialEq)]
 enum Status {
     Idle,
-    /// Wifi is switched off in Windows, or there's no wifi adapter.
+    /// The PC has no wifi adapter.
+    NoAdapter,
+    /// The wifi adapter is disabled in Windows network connections.
+    AdapterDisabled,
+    /// Wifi is switched off in Windows.
     WifiOff,
     /// Waiting for the user to join the network once from Windows, which saves its profile.
     NoProfile,
@@ -214,16 +218,16 @@ impl App {
                     ctx.request_repaint();
                     break;
                 }
-                let wifi = netsh::wifi_state();
-                let status = if !wifi.radio_on {
-                    Status::WifiOff
-                } else if wifi.connected.contains(&ssid) {
-                    Status::Connected
-                } else if !netsh::get_saved_profiles().contains(&ssid) {
-                    Status::NoProfile
-                } else {
-                    netsh::connect(&ssid);
-                    Status::Connecting
+                let status = match netsh::wifi_state() {
+                    netsh::Wifi::NoAdapter => Status::NoAdapter,
+                    netsh::Wifi::AdapterDisabled => Status::AdapterDisabled,
+                    netsh::Wifi::RadioOff => Status::WifiOff,
+                    netsh::Wifi::On { connected } if connected.contains(&ssid) => Status::Connected,
+                    netsh::Wifi::On { .. } if !netsh::get_saved_profiles().contains(&ssid) => Status::NoProfile,
+                    netsh::Wifi::On { .. } => {
+                        netsh::connect(&ssid);
+                        Status::Connecting
+                    }
                 };
                 if status != last {
                     if last == Status::Connected {
@@ -480,12 +484,14 @@ impl App {
     fn status_panel(&self, ui: &mut egui::Ui, t: &Strings) {
         let (color, title, hint) = match self.status {
             Status::Idle => (theme::MUTED, t.not_connected, None),
+            Status::NoAdapter => (AMBER, t.no_adapter_title, Some(t.no_adapter)),
+            Status::AdapterDisabled => (AMBER, t.adapter_off_title, Some(t.adapter_off)),
             Status::WifiOff => (AMBER, t.wifi_off_title, Some(t.wifi_off)),
             Status::NoProfile => (AMBER, t.no_profile_title, Some(t.no_profile)),
             Status::Connecting => (AMBER, t.connecting, Some(t.retry_hint)),
             Status::Connected => (GREEN, t.connected, Some(t.watching)),
         };
-        let waiting = matches!(self.status, Status::WifiOff | Status::NoProfile | Status::Connecting);
+        let waiting = !matches!(self.status, Status::Idle | Status::Connected);
         theme::card().show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
@@ -501,9 +507,19 @@ impl App {
             if let Some(hint) = hint {
                 ui.weak(hint);
             }
-            // Both are fixed from the Windows wifi menu.
-            if matches!(self.status, Status::WifiOff | Status::NoProfile) && ui.button(t.open_wifi_menu).clicked() {
-                netsh::open_wifi_menu();
+            // A shortcut to where the problem is fixed in Windows.
+            match self.status {
+                Status::WifiOff | Status::NoProfile => {
+                    if ui.button(t.open_wifi_menu).clicked() {
+                        netsh::open_wifi_menu();
+                    }
+                }
+                Status::AdapterDisabled => {
+                    if ui.button(t.open_network_connections).clicked() {
+                        netsh::open_network_connections();
+                    }
+                }
+                _ => {}
             }
         });
     }
@@ -511,7 +527,7 @@ impl App {
     fn connect_button(&mut self, ui: &mut egui::Ui, t: &Strings) {
         let size = egui::vec2(ui.available_width(), 40.0);
         match self.status {
-            Status::WifiOff | Status::NoProfile | Status::Connecting => {
+            Status::NoAdapter | Status::AdapterDisabled | Status::WifiOff | Status::NoProfile | Status::Connecting => {
                 if ui.add_sized(size, theme::secondary_button(t.cancel)).clicked() {
                     self.cancel.store(true, Ordering::Relaxed);
                 }
