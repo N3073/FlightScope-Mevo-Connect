@@ -92,7 +92,7 @@ The exe is created at `target\release\FlightScope-connect.exe`. Release builds o
 To build the installer, install [Inno Setup](https://jrsoftware.org/isinfo.php) 6.3 or newer and run:
 
 ```powershell
-& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.3.2 installer\setup.iss
+& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" /DAppVersion=0.3.3 installer\setup.iss
 ```
 
 The installer is written to `dist\`.
@@ -103,8 +103,8 @@ The installer is written to `dist\`.
 2. Tag the commit with the same version and push the tag:
 
    ```powershell
-   git tag v0.3.2
-   git push origin v0.3.2
+   git tag v0.3.3
+   git push origin v0.3.3
    ```
 
 The [Release workflow](.github/workflows/release.yml) builds the app and the installer, then publishes a GitHub release with the installer attached. Installed copies of the app update from that release. The workflow stops with an error if the tag doesn't match the version in `Cargo.toml`. Without that check, installed copies would install the same release over and over.
