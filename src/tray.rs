@@ -51,6 +51,34 @@ impl Window {
         }
     }
 
+    /// The cursor position and the window's top-left corner, in screen pixels.
+    pub fn cursor_and_position(&self) -> Option<((i32, i32), (i32, i32))> {
+        #[cfg(windows)]
+        if let Some(hwnd) = self.hwnd() {
+            use windows_sys::Win32::Foundation::{POINT, RECT};
+            use windows_sys::Win32::UI::WindowsAndMessaging::{GetCursorPos, GetWindowRect};
+            let mut cursor = POINT { x: 0, y: 0 };
+            let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+            if unsafe { GetCursorPos(&mut cursor) != 0 && GetWindowRect(hwnd, &mut rect) != 0 } {
+                return Some(((cursor.x, cursor.y), (rect.left, rect.top)));
+            }
+        }
+        None
+    }
+
+    /// Moves the window's top-left corner to the given screen position.
+    pub fn move_to(&self, x: i32, y: i32) {
+        #[cfg(windows)]
+        if let Some(hwnd) = self.hwnd() {
+            use windows_sys::Win32::UI::WindowsAndMessaging::{
+                SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+            };
+            unsafe { SetWindowPos(hwnd, std::ptr::null_mut(), x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE) };
+        }
+        #[cfg(not(windows))]
+        let _ = (x, y);
+    }
+
     #[cfg(windows)]
     fn hwnd(&self) -> Option<windows_sys::Win32::Foundation::HWND> {
         match self.0.load(Ordering::Relaxed) {

@@ -77,6 +77,17 @@ fn badge(ui: &mut egui::Ui, text: &str, color: Color32) -> egui::Response {
         .response
 }
 
+fn load_icon(ctx: &egui::Context) -> egui::TextureHandle {
+    let png = eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
+        .expect("bundled icon is a valid PNG");
+    let image = egui::ColorImage::from_rgba_unmultiplied([png.width as usize, png.height as usize], &png.rgba);
+    let options = egui::TextureOptions {
+        mipmap_mode: Some(egui::TextureFilter::Linear),
+        ..egui::TextureOptions::LINEAR
+    };
+    ctx.load_texture("app-icon", image, options)
+}
+
 enum Msg {
     Attempt { attempt: u32, output: String },
     Connected,
@@ -116,6 +127,10 @@ struct App {
     /// None if the tray icon couldn't be created; the window then never hides.
     tray: Option<Tray>,
     tray_language: Language,
+    /// The app icon, shown in the title bar.
+    icon: egui::TextureHandle,
+    /// Cursor and window positions (screen pixels) when a title bar drag began.
+    drag_origin: Option<((i32, i32), (i32, i32))>,
     /// When to hide the window to the tray after connecting.
     hide_at: Option<Instant>,
     cancel: Arc<AtomicBool>,
@@ -160,6 +175,8 @@ impl App {
             window,
             tray,
             tray_language: language,
+            icon: load_icon(&cc.egui_ctx),
+            drag_origin: None,
             hide_at: None,
             cancel: Arc::new(AtomicBool::new(false)),
             tx,
@@ -291,11 +308,40 @@ impl App {
         )
     }
 
-    fn header(&mut self, ui: &mut egui::Ui) {
+    /// The custom title bar: icon, title, settings, minimise and close. Dragging anywhere on it
+    /// that isn't a button moves the window.
+    fn title_bar(&mut self, ui: &mut egui::Ui) {
         let t = self.language.strings();
+        let bar = egui::Rect::from_min_size(ui.max_rect().min, egui::vec2(ui.max_rect().width(), theme::TITLE_BAR_HEIGHT));
+        let drag = ui.interact(bar, ui.scope_id().with("title_bar"), egui::Sense::click_and_drag());
+        // Move the window with the cursor while the button is held on the bar. This tracks the
+        // cursor in screen coordinates itself rather than using Windows' move mode
+        // (ViewportCommand::StartDrag), which didn't respond reliably.
+        if drag.is_pointer_button_down_on() {
+            if self.drag_origin.is_none() {
+                self.drag_origin = self.window.cursor_and_position();
+            }
+            if let (Some((cursor0, window0)), Some((cursor, _))) = (self.drag_origin, self.window.cursor_and_position()) {
+                self.window.move_to(window0.0 + cursor.0 - cursor0.0, window0.1 + cursor.1 - cursor0.1);
+            }
+        } else {
+            self.drag_origin = None;
+        }
         ui.horizontal(|ui| {
-            ui.label(RichText::new(APP_NAME).family(theme::bold()).size(19.0).color(Color32::WHITE));
+            ui.set_height(theme::TITLE_BAR_HEIGHT);
+            ui.add_space(12.0);
+            ui.add(egui::Image::new(&self.icon).fit_to_exact_size(egui::vec2(22.0, 22.0)));
+            ui.label(RichText::new(APP_NAME).family(theme::bold()).size(18.0).color(Color32::WHITE));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                // Goes through the same close handling as Alt+F4: hides to the tray.
+                if theme::title_button(ui, theme::TitleButton::Close).clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                if theme::title_button(ui, theme::TitleButton::Minimize).clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                }
+                ui.add_space(10.0);
                 if theme::gear_button(ui, self.show_settings).on_hover_text(t.settings).clicked() {
                     self.show_settings = !self.show_settings;
                 }
@@ -530,7 +576,7 @@ impl eframe::App for App {
                 self.tray_language = self.language;
             }
         }
-        egui::Panel::top("header").frame(theme::bar()).show(ui, |ui| self.header(ui));
+        egui::Panel::top("title_bar").frame(theme::title_bar()).show(ui, |ui| self.title_bar(ui));
         egui::Panel::bottom("footer").frame(theme::bar()).show(ui, |ui| {
             let version = self.language.strings().version.replace("{v}", env!("CARGO_PKG_VERSION"));
             ui.label(RichText::new(version).small().color(Color32::from_gray(0xcc)));
@@ -545,6 +591,14 @@ impl eframe::App for App {
                 }
             });
         });
+        // Without the Windows frame, a thin border keeps the window distinct from what's behind it.
+        let border = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("window_border"));
+        ctx.layer_painter(border).rect_stroke(
+            ctx.content_rect(),
+            0.0,
+            egui::Stroke::new(1.0, theme::GREY),
+            egui::StrokeKind::Inside,
+        );
     }
 
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -557,13 +611,14 @@ fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_NAME)
-            .with_maximize_button(false)
+            // The app draws its own title bar (see App::title_bar).
+            .with_decorations(false)
+            .with_resizable(false)
             .with_icon(
                 eframe::icon_data::from_png_bytes(include_bytes!("../assets/icon.png"))
                     .expect("bundled icon is a valid PNG"),
             )
-            .with_inner_size([460.0, 470.0])
-            .with_min_inner_size([380.0, 360.0]),
+            .with_inner_size([460.0, 470.0]),
         // Always open at the default size rather than wherever it was last left.
         persist_window: false,
         ..Default::default()

@@ -40,6 +40,8 @@ pub fn apply(ctx: &egui::Context) {
         ]
         .into();
         style.spacing.button_padding = egui::vec2(12.0, 6.0);
+        // Text isn't selectable; otherwise the title text would catch drags meant for the title bar.
+        style.interaction.selectable_labels = false;
         style.spacing.item_spacing = egui::vec2(8.0, 8.0);
 
         let visuals = &mut style.visuals;
@@ -109,6 +111,44 @@ pub fn bar() -> egui::Frame {
     egui::Frame::new()
         .fill(CHARCOAL)
         .inner_margin(egui::Margin::symmetric(14, 10))
+}
+
+pub const TITLE_BAR_HEIGHT: f32 = 44.0;
+
+/// The charcoal title bar that replaces the Windows one.
+pub fn title_bar() -> egui::Frame {
+    egui::Frame::new().fill(CHARCOAL)
+}
+
+pub enum TitleButton {
+    Minimize,
+    Close,
+}
+
+/// A Windows-style caption button for the title bar, drawn by hand. Close turns red on hover.
+pub fn title_button(ui: &mut egui::Ui, kind: TitleButton) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(46.0, TITLE_BAR_HEIGHT), egui::Sense::click());
+    let painter = ui.painter();
+    if response.hovered() {
+        let fill = match kind {
+            TitleButton::Close => RED,
+            TitleButton::Minimize => GREY,
+        };
+        painter.rect_filled(rect, CornerRadius::ZERO, fill);
+    }
+    let stroke = Stroke::new(1.2, Color32::WHITE);
+    let c = rect.center();
+    let r = 5.5;
+    match kind {
+        TitleButton::Minimize => {
+            painter.line_segment([c + egui::vec2(-r, 0.0), c + egui::vec2(r, 0.0)], stroke);
+        }
+        TitleButton::Close => {
+            painter.line_segment([c + egui::vec2(-r, -r), c + egui::vec2(r, r)], stroke);
+            painter.line_segment([c + egui::vec2(-r, r), c + egui::vec2(r, -r)], stroke);
+        }
+    }
+    response
 }
 
 /// A settings cog for the header bar, drawn by hand so it doesn't depend on font glyphs.
