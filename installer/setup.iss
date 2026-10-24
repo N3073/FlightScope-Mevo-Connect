@@ -163,6 +163,9 @@ Filename: "{app}\{#AppExe}"; Flags: nowait; Check: IsRelaunch
 var
   SsidPage: TWizardPage;
   SsidCombo: TNewComboBox;
+  // The value the page starts with; also what a silent install saves, since the page (and
+  // its drop-down) is never shown then.
+  InitialSsid: String;
 
 // The current network name: the user's FS_name variable, or else the system-wide one.
 function ExistingSsid(): String;
@@ -170,6 +173,15 @@ begin
   if not RegQueryStringValue(HKCU, 'Environment', 'FS_name', Result) then
     if not RegQueryStringValue(HKLM, 'SYSTEM\CurrentControlSet\Control\Session Manager\Environment', 'FS_name', Result) then
       Result := '';
+end;
+
+// True when the app is already installed, i.e. this run is an update.
+function IsUpdate(): Boolean;
+var
+  Key: String;
+begin
+  Key := 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8F3C2A51-6B7E-4D2F-9A41-3E5C7B9D0F12}_is1';
+  Result := RegKeyExists(HKCU, Key) or RegKeyExists(HKLM, Key);
 end;
 
 function LooksLikeMevo(Ssid: String): Boolean;
@@ -246,14 +258,16 @@ begin
   for I := 0 to GetArrayLength(Networks) - 1 do
     SsidCombo.Items.Add(Networks[I]);
 
-  // Prefer the current setting if it looks like a Mevo, then a saved Mevo network.
+  // An update keeps the current setting as it is. A new install prefers the current setting
+  // if it looks like a Mevo, then a saved Mevo network.
   Existing := Trim(ExistingSsid());
-  if (Existing <> '') and LooksLikeMevo(Existing) then
-    SsidCombo.Text := Existing
+  if (Existing <> '') and (IsUpdate() or LooksLikeMevo(Existing)) then
+    InitialSsid := Existing
   else if GetArrayLength(Networks) > 0 then
-    SsidCombo.Text := Networks[0]
+    InitialSsid := Networks[0]
   else
-    SsidCombo.Text := Existing;
+    InitialSsid := Existing;
+  SsidCombo.Text := InitialSsid;
 
   if GetArrayLength(Networks) > 0 then
   begin
@@ -269,7 +283,10 @@ end;
 
 function GetSsid(Param: String): String;
 begin
-  Result := Trim(SsidCombo.Text);
+  if WizardSilent() then
+    Result := InitialSsid
+  else
+    Result := Trim(SsidCombo.Text);
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
@@ -277,6 +294,9 @@ var
   Ssid: String;
 begin
   Result := True;
+  // Silent installs (updates) take the value as it is; a message box would only get in the way.
+  if WizardSilent() then
+    Exit;
   if CurPageID = SsidPage.ID then
   begin
     Ssid := GetSsid('');
@@ -293,6 +313,17 @@ end;
 function SsidEntered(): Boolean;
 begin
   Result := GetSsid('') <> '';
+end;
+
+// The app hides to the tray when asked to close, so Windows' Restart Manager can't shut it
+// down and the install would stop. End it directly so its files can be replaced; updates
+// start it again afterwards (see [Run]).
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#AppExe}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
 end;
 
 function IsRelaunch(): Boolean;
