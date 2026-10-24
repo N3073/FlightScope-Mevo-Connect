@@ -20,7 +20,11 @@ To change the network name or the startup option later, run the installer again;
 2. The window shows that network name with a badge:
    - **✓ Mevo network** (green): the name matches the Mevo naming pattern. Names count as a match if they start with `FS` or contain `Mevo`; case doesn't matter.
    - **⚠ Not a Mevo name** (amber): the name doesn't match. The app still connects to it, but check the name you entered.
-3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it runs `netsh wlan connect` again. The status panel shows the attempt number and Windows' reply. It keeps retrying until it connects, so you can start it before the Mevo is switched on.
+3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it runs `netsh wlan connect` again, and keeps retrying until it connects, so you can start it before the Mevo is switched on. It only retries when connecting can work. Otherwise it shows what to fix and carries on by itself once it's fixed:
+   - **Wifi is off**: turn wifi on in Windows.
+   - **Network not saved in Windows**: join the network once from the Windows wifi menu, so that Windows saves its password.
+
+   Both screens have an **Open wifi menu** button.
 4. Once connected, the app shows **Connected** for 2 seconds and then hides to the system tray (the notification area next to the clock). It keeps running and checks the connection every 2 seconds.
 5. If the Mevo disconnects, for example because it's switched off, the window comes back to the front and the app starts reconnecting.
 
@@ -58,7 +62,7 @@ If the PC has no internet connection, for example because it's already on the Me
 ## Requirements
 
 - Windows 10 or 11 (64-bit) with a wifi adapter.
-- A **saved Windows wifi profile** for the Mevo's network. `netsh` can only connect to networks Windows has joined before. Before using the app, join the Mevo's network once from the Windows wifi menu and enter its password. If no profile is found, the app shows a warning.
+- A **saved Windows wifi profile** for the Mevo's network. `netsh` can only connect to networks Windows has joined before. Before using the app, join the Mevo's network once from the Windows wifi menu and enter its password. If no profile is found, the app says so and waits.
 
 ## Setting up without the installer
 
@@ -122,7 +126,8 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | Problem | What to check |
 | --- | --- |
 | "FS_name is not set" | Run the installer again, or set the variable yourself (see above). |
-| "No saved profile" warning | Join the Mevo's network once from the Windows wifi menu. |
+| "Wifi is off" | Turn wifi on in Windows, for example with **Open wifi menu**. |
+| "Network not saved in Windows" | Join the Mevo's network once from the Windows wifi menu. |
 | Stays on "Connecting…" | Check that the Mevo is switched on and in range, and that the network name matches exactly, including spaces and case. |
 | Badge shows "Not a Mevo name" | The network name you entered is probably wrong. Run the installer again to change it. |
 | "Update failed" | The PC probably has no internet connection. Try **Check for updates** again later. |

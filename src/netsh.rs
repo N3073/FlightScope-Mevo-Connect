@@ -34,11 +34,26 @@ fn values_of(output: &str, key_matches: impl Fn(&str) -> bool) -> Vec<String> {
         .collect()
 }
 
-/// SSIDs the wifi adapter(s) are currently connected to.
-pub fn get_connected_networks() -> Vec<String> {
-    netsh(&["wlan", "show", "interfaces"], None)
-        .map(|out| values_of(&out, |key| key == "SSID"))
-        .unwrap_or_default()
+pub struct WifiState {
+    /// False when wifi is switched off in Windows, or there's no wifi adapter.
+    pub radio_on: bool,
+    /// SSIDs the wifi adapter(s) are connected to.
+    pub connected: Vec<String>,
+}
+
+pub fn wifi_state() -> WifiState {
+    let out = netsh(&["wlan", "show", "interfaces"], None).unwrap_or_default();
+    let has_interface = !values_of(&out, |key| key == "State").is_empty();
+    // "Radio status : Hardware On" is followed by a line with just "Software Off" when
+    // wifi is turned off in Windows.
+    let radio_off = out.lines().any(|line| {
+        let line = line.trim().to_lowercase();
+        line.ends_with("software off") || line.ends_with("hardware off")
+    });
+    WifiState {
+        radio_on: has_interface && !radio_off,
+        connected: values_of(&out, |key| key == "SSID"),
+    }
 }
 
 /// Names of the wifi profiles saved in Windows. `netsh wlan connect` only works for these.
@@ -48,12 +63,10 @@ pub fn get_saved_profiles() -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Asks Windows to connect to the saved profile `name`. Returns netsh's message.
-pub fn connect(name: &str) -> String {
+/// Asks Windows to connect to the saved profile `name`. Success shows up in `wifi_state`.
+pub fn connect(name: &str) {
     let arg = format!("name=\"{name}\"");
-    netsh(&["wlan", "connect"], Some(&arg))
-        .map(|out| out.trim().to_string())
-        .unwrap_or_else(|| String::from("Failed to run netsh."))
+    netsh(&["wlan", "connect"], Some(&arg));
 }
 
 /// Opens the Windows list of available wifi networks.

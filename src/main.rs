@@ -89,19 +89,19 @@ fn load_icon(ctx: &egui::Context) -> egui::TextureHandle {
 }
 
 enum Msg {
-    Attempt { attempt: u32, output: String },
-    /// Windows has no saved profile for the network, so connecting can't work yet.
-    NoProfile,
-    Connected,
-    Cancelled,
+    /// The connection status changed. Idle means the connection loop stopped (Cancel).
+    Status(Status),
     Update(UpdateState),
 }
 
+#[derive(Clone, Copy, PartialEq)]
 enum Status {
     Idle,
-    Connecting { attempt: u32, output: String },
+    /// Wifi is switched off in Windows, or there's no wifi adapter.
+    WifiOff,
     /// Waiting for the user to join the network once from Windows, which saves its profile.
     NoProfile,
+    Connecting,
     Connected,
 }
 
@@ -201,44 +201,40 @@ impl App {
         self.cancel = Arc::new(AtomicBool::new(false));
         let cancel = self.cancel.clone();
         let window = self.window.clone();
-        self.status = Status::Connecting { attempt: 0, output: String::new() };
+        self.status = Status::Connecting;
         // Keeps watching after connecting, and reconnects if the connection drops
         // (e.g. the Mevo is switched off and on again). The window comes back from the
         // tray when that happens; it's shown from here because egui is paused while hidden.
-        // Without a saved Windows profile netsh can't connect, so it only waits for one; the
-        // profile appears once the user joins the network from the Windows wifi menu.
+        // Connecting is only tried when it can work: wifi on and a saved Windows profile.
         thread::spawn(move || {
-            let mut attempt = 0;
-            let mut connected = false;
+            let mut last = Status::Connecting;
             loop {
                 if cancel.load(Ordering::Relaxed) {
-                    let _ = tx.send(Msg::Cancelled);
+                    let _ = tx.send(Msg::Status(Status::Idle));
+                    ctx.request_repaint();
                     break;
                 }
-                if netsh::get_connected_networks().contains(&ssid) {
-                    if !connected {
-                        connected = true;
-                        attempt = 0;
-                        let _ = tx.send(Msg::Connected);
-                        ctx.request_repaint();
-                    }
+                let wifi = netsh::wifi_state();
+                let status = if !wifi.radio_on {
+                    Status::WifiOff
+                } else if wifi.connected.contains(&ssid) {
+                    Status::Connected
+                } else if !netsh::get_saved_profiles().contains(&ssid) {
+                    Status::NoProfile
                 } else {
-                    if connected {
-                        connected = false;
+                    netsh::connect(&ssid);
+                    Status::Connecting
+                };
+                if status != last {
+                    if last == Status::Connected {
                         window.show();
                     }
-                    if netsh::get_saved_profiles().contains(&ssid) {
-                        attempt += 1;
-                        let output = netsh::connect(&ssid);
-                        let _ = tx.send(Msg::Attempt { attempt, output });
-                    } else {
-                        let _ = tx.send(Msg::NoProfile);
-                    }
+                    last = status;
+                    let _ = tx.send(Msg::Status(status));
                     ctx.request_repaint();
                 }
                 thread::sleep(RETRY_DELAY);
             }
-            ctx.request_repaint();
         });
     }
 
@@ -274,26 +270,13 @@ impl App {
     fn handle_messages(&mut self, ctx: &egui::Context) {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
-                // Ignore late messages after Cancel was pressed.
-                Msg::Attempt { attempt, output } => {
-                    if !matches!(self.status, Status::Idle) {
-                        self.status = Status::Connecting { attempt, output };
-                        self.hide_at = None;
-                    }
+                Msg::Status(status) => {
+                    self.status = status;
+                    self.hide_at = match status == Status::Connected && self.tray.is_some() {
+                        true => Some(Instant::now() + HIDE_DELAY),
+                        false => None,
+                    };
                 }
-                Msg::NoProfile => {
-                    if !matches!(self.status, Status::Idle) {
-                        self.status = Status::NoProfile;
-                        self.hide_at = None;
-                    }
-                }
-                Msg::Connected => {
-                    self.status = Status::Connected;
-                    if self.tray.is_some() {
-                        self.hide_at = Some(Instant::now() + HIDE_DELAY);
-                    }
-                }
-                Msg::Cancelled => self.status = Status::Idle,
                 Msg::Update(state) => {
                     self.update = state;
                     if let UpdateState::Available(release) = &self.update {
@@ -495,41 +478,32 @@ impl App {
     }
 
     fn status_panel(&self, ui: &mut egui::Ui, t: &Strings) {
-        let (color, text) = match &self.status {
-            Status::Idle => (theme::MUTED, t.not_connected.to_string()),
-            Status::Connecting { attempt, .. } => (AMBER, t.connecting.replace("{n}", &attempt.to_string())),
-            Status::NoProfile => (AMBER, t.no_profile_title.to_string()),
-            Status::Connected => (GREEN, t.connected.to_string()),
+        let (color, title, hint) = match self.status {
+            Status::Idle => (theme::MUTED, t.not_connected, None),
+            Status::WifiOff => (AMBER, t.wifi_off_title, Some(t.wifi_off)),
+            Status::NoProfile => (AMBER, t.no_profile_title, Some(t.no_profile)),
+            Status::Connecting => (AMBER, t.connecting, Some(t.retry_hint)),
+            Status::Connected => (GREEN, t.connected, Some(t.watching)),
         };
+        let waiting = matches!(self.status, Status::WifiOff | Status::NoProfile | Status::Connecting);
         theme::card().show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.horizontal(|ui| {
                 // Waiting statuses get a spinner: the app is still watching for changes.
-                if let Status::Connecting { .. } | Status::NoProfile = self.status {
+                if waiting {
                     ui.add(egui::Spinner::new().color(color));
                 } else {
                     let (rect, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
                     ui.painter().circle_filled(rect.center(), 6.0, color);
                 }
-                ui.label(RichText::new(text).family(theme::bold()).size(16.0).color(color));
+                ui.label(RichText::new(title).family(theme::bold()).size(16.0).color(color));
             });
-            match &self.status {
-                Status::Connecting { output, .. } => {
-                    if !output.is_empty() {
-                        ui.weak(output);
-                    }
-                    ui.weak(t.retry_hint);
-                }
-                Status::NoProfile => {
-                    ui.weak(t.no_profile);
-                    if ui.button(t.open_wifi_menu).clicked() {
-                        netsh::open_wifi_menu();
-                    }
-                }
-                Status::Connected => {
-                    ui.weak(t.watching);
-                }
-                Status::Idle => {}
+            if let Some(hint) = hint {
+                ui.weak(hint);
+            }
+            // Both are fixed from the Windows wifi menu.
+            if matches!(self.status, Status::WifiOff | Status::NoProfile) && ui.button(t.open_wifi_menu).clicked() {
+                netsh::open_wifi_menu();
             }
         });
     }
@@ -537,7 +511,7 @@ impl App {
     fn connect_button(&mut self, ui: &mut egui::Ui, t: &Strings) {
         let size = egui::vec2(ui.available_width(), 40.0);
         match self.status {
-            Status::Connecting { .. } | Status::NoProfile => {
+            Status::WifiOff | Status::NoProfile | Status::Connecting => {
                 if ui.add_sized(size, theme::secondary_button(t.cancel)).clicked() {
                     self.cancel.store(true, Ordering::Relaxed);
                 }
