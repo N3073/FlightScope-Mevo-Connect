@@ -24,6 +24,9 @@ const APP_NAME: &str = "FlightScope Mevo Connect";
 const LANGUAGE_KEY: &str = "language";
 const AUTO_UPDATE_KEY: &str = "auto_update";
 const RETRY_DELAY: Duration = Duration::from_millis(2_000);
+/// How often to ask Windows for a fresh wifi scan while the Mevo isn't visible. Scanning
+/// briefly ties up the adapter, so not on every check.
+const SCAN_INTERVAL: Duration = Duration::from_secs(10);
 /// How long "Connected" is shown before the window hides to the system tray.
 const HIDE_DELAY: Duration = Duration::from_secs(2);
 
@@ -214,6 +217,7 @@ impl App {
         // Connecting is only tried when it can work: wifi on and a saved Windows profile.
         thread::spawn(move || {
             let mut last = Status::Connecting;
+            let mut last_scan: Option<Instant> = None;
             loop {
                 if cancel.load(Ordering::Relaxed) {
                     let _ = tx.send(Msg::Status(Status::Idle));
@@ -235,6 +239,17 @@ impl App {
                         }
                     }
                 };
+                // Windows refreshes its list of visible networks only now and then, so a Mevo
+                // that was just switched on can stay missing. Ask for a scan right away, and
+                // then every SCAN_INTERVAL while it's still missing.
+                if status == Status::NotFound {
+                    if last_scan.is_none_or(|at| at.elapsed() >= SCAN_INTERVAL) {
+                        let _ = netsh::request_scan(&ssid);
+                        last_scan = Some(Instant::now());
+                    }
+                } else {
+                    last_scan = None;
+                }
                 if status != last {
                     if last == Status::Connected {
                         window.show();

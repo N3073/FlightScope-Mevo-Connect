@@ -105,6 +105,58 @@ fn parse_visible_networks(out: &str) -> Vec<String> {
     values_of(out, |key| key.starts_with("SSID "))
 }
 
+/// Asks Windows to scan for wifi networks now, probing for `ssid` by name. The result shows
+/// up in `get_visible_networks` once the scan finishes (within a few seconds). Returns how
+/// many wifi adapters were asked, or the Windows error code.
+#[cfg(windows)]
+pub fn request_scan(ssid: &str) -> Result<u32, u32> {
+    use windows_sys::Win32::Foundation::{ERROR_INVALID_PARAMETER, HANDLE};
+    use windows_sys::Win32::NetworkManagement::WiFi::{
+        DOT11_SSID, WLAN_INTERFACE_INFO_LIST, WlanCloseHandle, WlanEnumInterfaces, WlanFreeMemory,
+        WlanOpenHandle, WlanScan,
+    };
+    let bytes = ssid.as_bytes();
+    if bytes.is_empty() || bytes.len() > 32 {
+        return Err(ERROR_INVALID_PARAMETER);
+    }
+    let mut probe = DOT11_SSID { uSSIDLength: bytes.len() as u32, ucSSID: [0; 32] };
+    probe.ucSSID[..bytes.len()].copy_from_slice(bytes);
+
+    let null = std::ptr::null();
+    unsafe {
+        let mut version = 0;
+        let mut handle: HANDLE = std::ptr::null_mut();
+        // Client version 2 is the Windows Vista and later API.
+        let err = WlanOpenHandle(2, null, &mut version, &mut handle);
+        if err != 0 {
+            return Err(err);
+        }
+        let mut list: *mut WLAN_INTERFACE_INFO_LIST = std::ptr::null_mut();
+        let err = WlanEnumInterfaces(handle, null, &mut list);
+        let result = if err != 0 {
+            Err(err)
+        } else {
+            let interfaces = (*list).InterfaceInfo.as_ptr();
+            let mut scanned = 0;
+            for i in 0..(*list).dwNumberOfItems as usize {
+                let guid = &(*interfaces.add(i)).InterfaceGuid;
+                if WlanScan(handle, guid, &probe, std::ptr::null(), null) == 0 {
+                    scanned += 1;
+                }
+            }
+            WlanFreeMemory(list as *const _);
+            Ok(scanned)
+        };
+        WlanCloseHandle(handle, null);
+        result
+    }
+}
+
+#[cfg(not(windows))]
+pub fn request_scan(_ssid: &str) -> Result<u32, u32> {
+    Ok(0)
+}
+
 /// Names of the wifi profiles saved in Windows. `netsh wlan connect` only works for these.
 pub fn get_saved_profiles() -> Vec<String> {
     netsh(&["wlan", "show", "profiles"], None)
@@ -193,6 +245,20 @@ SSID 3 : FS M2-123456
 ";
         // Hidden networks have an empty name and are left out.
         assert_eq!(parse_visible_networks(out), vec!["MORDOR", "FS M2-123456"]);
+    }
+
+    /// Asks the real wifi adapter for a scan; needs a PC with wifi switched on.
+    /// Run with `cargo test -- --ignored`.
+    #[test]
+    #[ignore]
+    fn scan_request_is_accepted() {
+        assert!(matches!(request_scan("FS M2-123456"), Ok(n) if n >= 1));
+    }
+
+    #[test]
+    fn scan_rejects_invalid_names() {
+        assert!(request_scan("").is_err());
+        assert!(request_scan(&"x".repeat(33)).is_err());
     }
 
     #[test]
