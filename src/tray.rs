@@ -25,6 +25,36 @@ impl Window {
         Self(Arc::new(AtomicIsize::new(hwnd)))
     }
 
+    /// The window of an already running copy of the app, found by its title even while it's
+    /// hidden in the tray. winit and the tray icon also make small hidden windows, some with
+    /// the same title, so the largest is taken.
+    pub fn find_existing() -> Option<Self> {
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::Foundation::RECT;
+            use windows_sys::Win32::UI::WindowsAndMessaging::{FindWindowExW, GetWindowRect};
+            let title: Vec<u16> = APP_NAME.encode_utf16().chain(std::iter::once(0)).collect();
+            let (mut best, mut best_area) = (0isize, 0i64);
+            let mut hwnd = std::ptr::null_mut();
+            loop {
+                hwnd = unsafe { FindWindowExW(std::ptr::null_mut(), hwnd, std::ptr::null(), title.as_ptr()) };
+                if hwnd.is_null() {
+                    break;
+                }
+                let mut rect = RECT { left: 0, top: 0, right: 0, bottom: 0 };
+                if unsafe { GetWindowRect(hwnd, &mut rect) } != 0 {
+                    let area = (rect.right - rect.left) as i64 * (rect.bottom - rect.top) as i64;
+                    if area > best_area {
+                        (best, best_area) = (hwnd as isize, area);
+                    }
+                }
+            }
+            (best != 0).then(|| Self(Arc::new(AtomicIsize::new(best))))
+        }
+        #[cfg(not(windows))]
+        None
+    }
+
     pub fn is_known(&self) -> bool {
         self.0.load(Ordering::Relaxed) != 0
     }
@@ -85,6 +115,38 @@ impl Window {
             0 => None,
             hwnd => Some(hwnd as windows_sys::Win32::Foundation::HWND),
         }
+    }
+}
+
+/// Makes sure only one copy of the app runs per signed-in user. Held for the app's lifetime;
+/// Windows releases it when the app exits.
+pub struct SingleInstance {
+    #[cfg(windows)]
+    _mutex: windows_sys::Win32::Foundation::HANDLE,
+}
+
+impl SingleInstance {
+    /// None if another copy of the app is already running in this Windows session.
+    pub fn acquire() -> Option<Self> {
+        #[cfg(windows)]
+        {
+            use windows_sys::Win32::Foundation::{CloseHandle, ERROR_ALREADY_EXISTS, GetLastError};
+            use windows_sys::Win32::System::Threading::CreateMutexW;
+            // "Local\" scopes it to the current sign-in session. The GUID is the installer's AppId.
+            let name: Vec<u16> = r"Local\FlightScope-Mevo-Connect-8F3C2A51-6B7E-4D2F-9A41-3E5C7B9D0F12"
+                .encode_utf16()
+                .chain(std::iter::once(0))
+                .collect();
+            let mutex = unsafe { CreateMutexW(std::ptr::null(), 0, name.as_ptr()) };
+            if !mutex.is_null() && unsafe { GetLastError() } == ERROR_ALREADY_EXISTS {
+                unsafe { CloseHandle(mutex) };
+                return None;
+            }
+            // If the mutex couldn't be created at all, run anyway rather than not at all.
+            Some(Self { _mutex: mutex })
+        }
+        #[cfg(not(windows))]
+        Some(Self {})
     }
 }
 

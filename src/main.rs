@@ -642,6 +642,14 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    // A second copy (e.g. started from a shortcut while one runs in the tray) brings the
+    // running one's window to the front and exits.
+    let Some(_instance) = tray::SingleInstance::acquire() else {
+        if let Some(window) = tray::Window::find_existing() {
+            window.show();
+        }
+        return Ok(());
+    };
     wifi::suppress_error_popups();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

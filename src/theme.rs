@@ -193,9 +193,13 @@ pub fn action_button(ui: &mut egui::Ui, text: &str, kind: ButtonKind, size: egui
         // The app-wide text colour would otherwise win over the per-state colours.
         visuals.override_text_color = None;
         let widgets = &mut visuals.widgets;
-        for (state, (fill, border)) in [&mut widgets.inactive, &mut widgets.hovered, &mut widgets.active]
-            .into_iter()
-            .zip(states)
+        // Widgets that can't be clicked (Success) and disabled ones use the noninteractive
+        // colours, so those get the normal state's colours too.
+        let normal = states[0];
+        for (state, (fill, border)) in
+            [&mut widgets.noninteractive, &mut widgets.inactive, &mut widgets.hovered, &mut widgets.active]
+                .into_iter()
+                .zip([normal, states[0], states[1], states[2]])
         {
             state.weak_bg_fill = fill;
             state.bg_fill = fill;
