@@ -20,11 +20,11 @@ To change the network name or the startup option later, run the installer again;
 2. The window shows that network name with a badge:
    - **✓ Mevo network** (green): the name matches the Mevo naming pattern. Names count as a match if they start with `FS` or contain `Mevo`; case doesn't matter.
    - **⚠ Not a Mevo name** (amber): the name doesn't match. The app still connects to it, but check the name you entered.
-3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it runs `netsh wlan connect` again, and keeps retrying until it connects, so you can start it before the Mevo is switched on. It only retries when connecting can work. Otherwise it shows what to fix and carries on by itself once it's fixed:
+3. The app starts connecting straight away. Every 2 seconds it checks whether the PC is already on the network. If it isn't, it asks Windows to connect again, and keeps retrying until it connects, so you can start it before the Mevo is switched on. It only retries when connecting can work. Otherwise it shows what to fix and carries on by itself once it's fixed:
    - **No wifi adapter**: the PC has no wifi adapter. Plug in a USB wifi adapter.
    - **Wifi adapter is disabled**: enable it in Windows network connections. There's an **Open network connections** button.
    - **Wifi is off**: turn wifi on in Windows.
-   - **Mevo not found**: the Mevo's network isn't in range, usually because the Mevo is switched off. Switch it on and keep it near the PC. The app keeps trying meanwhile.
+   - **Mevo not found**: the Mevo's network isn't in range, usually because the Mevo is switched off. Switch it on and keep it near the PC. Meanwhile the app keeps trying, and asks Windows to scan for networks every 10 seconds so the Mevo shows up as soon as it's back.
    - **Network not saved in Windows**: join the network once from the Windows wifi menu, so that Windows saves its password.
 
    The last two have an **Open wifi menu** button.
@@ -47,7 +47,7 @@ Click the **⚙** button in the top-right corner to open the settings view.
 | Install updates automatically | Off by default. See [Updates](#updates). |
 | Check for updates | Checks GitHub for a newer release now. |
 
-Settings are saved when the app closes, to `%APPDATA%\FlightScope Mevo Connect\data\app.ron`. Messages that come from Windows itself (`netsh` output) stay in the Windows display language.
+Settings are saved when the app closes, to `%APPDATA%\FlightScope Mevo Connect\data\app.ron`.
 
 ## Updates
 
@@ -65,7 +65,7 @@ If the PC has no internet connection, for example because it's already on the Me
 ## Requirements
 
 - Windows 10 or 11 (64-bit) with a wifi adapter.
-- A **saved Windows wifi profile** for the Mevo's network. `netsh` can only connect to networks Windows has joined before. Before using the app, join the Mevo's network once from the Windows wifi menu and enter its password. If no profile is found, the app says so and waits.
+- A **saved Windows wifi profile** for the Mevo's network. Windows can only connect to networks it has joined before. Before using the app, join the Mevo's network once from the Windows wifi menu and enter its password. If no profile is found, the app says so and waits.
 
 ## Setting up without the installer
 
@@ -116,7 +116,7 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | `src/main.rs` | The window, connection loop, update flow and settings view (built with [egui/eframe](https://github.com/emilk/egui)) |
 | `src/theme.rs` | Colours, fonts and widget styling, based on FlightScope's website |
 | `src/tray.rs` | The system tray icon, and hiding/showing the window |
-| `src/netsh.rs` | Wrappers around the Windows `netsh wlan` commands |
+| `src/wifi.rs` | Wifi state and control through the Windows WLAN API (`wlanapi.dll`) |
 | `src/update.rs` | Checks GitHub releases, downloads and verifies the installer, and runs it |
 | `src/i18n.rs` | Languages and the translated text |
 | `installer/setup.iss` | Inno Setup script for the installer |
@@ -137,6 +137,28 @@ The [Release workflow](.github/workflows/release.yml) builds the app and the ins
 | Stays on "Connecting…" | Check that the Mevo is switched on and in range, and that the network name matches exactly, including spaces and case. |
 | Badge shows "Not a Mevo name" | The network name you entered is probably wrong. Run the installer again to change it. |
 | "Update failed" | The PC probably has no internet connection. Try **Check for updates** again later. |
+
+## Security
+
+The app runs with the signed-in user's normal rights. It doesn't listen for network connections and stores no passwords or other secrets; its settings file holds only the language and the auto-update choice. It's installed per user without administrator rights, so it can't be used to gain extra privileges. Its dependencies are pinned in `Cargo.lock`, and release builds use `--locked`.
+
+### Known risks
+
+**Updates trust this GitHub repository.** This is the main risk. The updater downloads the installer from the latest GitHub release over HTTPS and checks its SHA-256 hash. The expected hash comes from the same GitHub response as the download, so the check catches corrupted downloads but not a malicious release. Anyone who can publish a release here can run code on every installed copy: right away if automatic updates are on, otherwise when the user clicks **Install**. That includes anyone who gains access to the repository owner's account or a collaborator's, or who can push a `v*` tag. It also includes whoever controls the third-party GitHub Actions the release workflow uses (`actions/checkout`, `dtolnay/rust-toolchain`), which are referenced by tag rather than by commit hash. The installer and the exe are also not code-signed.
+
+Smaller issues, each of which needs code already running as the same user:
+
+- **System tools found by name.** The app starts `powershell`, `explorer` and `control` by name rather than by full path. Windows' program search can include the app's own folder, which the user can write to.
+- **Predictable download path.** The downloaded installer is saved in `%TEMP%` under a predictable name and run after the hash check. Another program could replace it in between.
+- **Lookalike networks.** The app keeps reconnecting to any network with the configured name. If the Mevo's network has no password, a nearby device broadcasting the same name could be joined instead. A WPA2 password saved in the Windows profile prevents this.
+
+### Planned improvements
+
+1. Sign releases and have the updater refuse unsigned installers. Options are an Authenticode certificate, which also removes the SmartScreen warning, or an Ed25519/minisign key kept offline with its public half built into the app.
+2. Pin the workflow's GitHub Actions to commit hashes, and protect `v*` tags so only the maintainer can create them.
+3. Start system tools by their full `System32` paths, and save downloads under a random file name.
+
+To report a security problem, use **Report a vulnerability** on the repository's **Security** tab, so it can be fixed before it's made public.
 
 ## License
 
