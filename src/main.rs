@@ -15,10 +15,10 @@ use tray::{Tray, Window};
 use update::Release;
 
 mod i18n;
-mod netsh;
 mod theme;
 mod tray;
 mod update;
+mod wifi;
 
 const APP_NAME: &str = "FlightScope Mevo Connect";
 const LANGUAGE_KEY: &str = "language";
@@ -224,16 +224,21 @@ impl App {
                     ctx.request_repaint();
                     break;
                 }
-                let status = match netsh::wifi_state() {
-                    netsh::Wifi::NoAdapter => Status::NoAdapter,
-                    netsh::Wifi::AdapterDisabled => Status::AdapterDisabled,
-                    netsh::Wifi::RadioOff => Status::WifiOff,
-                    netsh::Wifi::On { connected } if connected.contains(&ssid) => Status::Connected,
-                    netsh::Wifi::On { .. } if !netsh::get_saved_profiles().contains(&ssid) => Status::NoProfile,
-                    netsh::Wifi::On { .. } => {
+                // Windows is shutting down or restarting: leave the wifi alone.
+                if wifi::shutting_down() {
+                    thread::sleep(RETRY_DELAY);
+                    continue;
+                }
+                let status = match wifi::wifi_state() {
+                    wifi::Wifi::NoAdapter => Status::NoAdapter,
+                    wifi::Wifi::AdapterDisabled => Status::AdapterDisabled,
+                    wifi::Wifi::RadioOff => Status::WifiOff,
+                    wifi::Wifi::On { connected } if connected.contains(&ssid) => Status::Connected,
+                    wifi::Wifi::On { .. } if !wifi::get_saved_profiles().contains(&ssid) => Status::NoProfile,
+                    wifi::Wifi::On { .. } => {
                         // Windows' list of visible networks can lag behind, so try anyway.
-                        netsh::connect(&ssid);
-                        match netsh::get_visible_networks().contains(&ssid) {
+                        wifi::connect(&ssid);
+                        match wifi::get_visible_networks().contains(&ssid) {
                             true => Status::Connecting,
                             false => Status::NotFound,
                         }
@@ -244,7 +249,7 @@ impl App {
                 // then every SCAN_INTERVAL while it's still missing.
                 if status == Status::NotFound {
                     if last_scan.is_none_or(|at| at.elapsed() >= SCAN_INTERVAL) {
-                        let _ = netsh::request_scan(&ssid);
+                        let _ = wifi::request_scan(&ssid);
                         last_scan = Some(Instant::now());
                     }
                 } else {
@@ -536,12 +541,12 @@ impl App {
             match self.status {
                 Status::WifiOff | Status::NoProfile => {
                     if ui.button(t.open_wifi_menu).clicked() {
-                        netsh::open_wifi_menu();
+                        wifi::open_wifi_menu();
                     }
                 }
                 Status::AdapterDisabled => {
                     if ui.button(t.open_network_connections).clicked() {
-                        netsh::open_network_connections();
+                        wifi::open_network_connections();
                     }
                 }
                 _ => {}
@@ -637,6 +642,7 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    wifi::suppress_error_popups();
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(APP_NAME)
